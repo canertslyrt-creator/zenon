@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ZENON — Tekne Yapay Zekası</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background: linear-gradient(160deg, #010d1a 0%, #021428 40%, #030e1e 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: Georgia, serif;
+    color: #c8a84b;
+    overflow: hidden;
+    position: relative;
+    touch-action: manipulation;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    opacity: 0.025;
+    background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.5) 2px, rgba(255,255,255,0.5) 4px);
+    pointer-events: none;
+  }
+
+  /* ── TOPBAR ── */
+  #topbar {
+    width: 100%; max-width: 600px;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(184,134,11,0.3);
+    flex-shrink: 0;
+  }
+  #topbar .label { font-size: 11px; letter-spacing: 3px; opacity: 0.6; text-transform: uppercase; }
+  #status-dot {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; letter-spacing: 2px;
+    transition: color 0.3s;
+  }
+  #status-dot .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: currentColor;
+  }
+  #status-dot.ready   { color: #4caf50; }
+  #status-dot.think   { color: #ff8c00; }
+  #status-dot.talk    { color: #00d4ff; }
+  #status-dot.listen  { color: #00c864; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .pulsing .dot { animation: pulse 1s ease-in-out infinite; }
+
+  /* ── FACE ── */
+  #face {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 18px 0 10px; gap: 10px;
+    flex-shrink: 0;
+  }
+  #zenon-title {
+    font-size: 22px; font-weight: bold; letter-spacing: 6px;
+    text-transform: uppercase;
+    text-shadow: 0 0 20px rgba(184,134,11,0.5);
+  }
+  #emotion-label { font-size: 22px; height: 28px; transition: opacity 0.4s; }
+  #eyes { display: flex; gap: 28px; }
+
+  /* ── GÖZ ── */
+  .eye {
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #1a3a5c, #0a1520);
+    border: 6px solid #b8860b;
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow 0.4s ease;
+    flex-shrink: 0;
+  }
+  .iris {
+    position: absolute;
+    width: 68px; height: 68px;
+    border-radius: 50%;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    transition: background 0.5s ease, transform 0.15s ease, box-shadow 0.4s;
+  }
+  .pupil {
+    position: absolute;
+    border-radius: 50%;
+    background: #000;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    transition: width 0.3s ease, height 0.3s ease;
+  }
+  .shine { position: absolute; width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.9); top:4px; left:5px; }
+  .lid-top {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    background: linear-gradient(to bottom, #060f1a, #0a1520);
+    border-radius: 0 0 50% 50%;
+    transition: height 0.3s ease, transform 0.3s ease;
+    z-index: 2;
+  }
+  .lid-top.blinking { transition: height 0.07s ease-in !important; }
+  .lid-bot {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(to top, #060f1a, #0a1520);
+    border-radius: 50% 50% 0 0;
+    transition: height 0.4s ease;
+    z-index: 2;
+  }
+  .screw {
+    position: absolute;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #b8860b;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
+    top: 50%; left: 50%;
+    z-index: 5;
+  }
+  .brow {
+    position: absolute;
+    top: 8px; height: 5px;
+    background: #dd2200;
+    border-radius: 3px;
+    z-index: 4;
+    box-shadow: 0 0 8px rgba(220,34,0,0.8);
+    transition: opacity 0.3s;
+  }
+  .glass-shine {
+    position: absolute;
+    width: 55%; height: 28%;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.035);
+    top: 8px; left: 22%;
+    transform: rotate(-15deg);
+    z-index: 6; pointer-events: none;
+  }
+  .teardrop {
+    position: absolute;
+    width: 6px; height: 14px;
+    border-radius: 0 0 50% 50%;
+    background: linear-gradient(to bottom, rgba(100,160,255,0.8), rgba(100,160,255,0));
+    bottom: 14px; left: 48%;
+    z-index: 3;
+  }
+  @keyframes teardrop { 0%,100%{opacity:0;transform:translateY(-4px)} 50%{opacity:1;transform:translateY(4px)} }
+  .teardrop { animation: teardrop 2s ease-in-out infinite; }
+  @keyframes sparkle { from{opacity:0.3;transform:scale(0.7)} to{opacity:1;transform:scale(1.3)} }
+  .spark {
+    position: absolute; width:5px; height:5px;
+    border-radius:50%; background:#ffdd00;
+    z-index:4; box-shadow:0 0 6px #ffdd00;
+  }
+
+  /* ── WAVE ── */
+  #wave { display: flex; gap: 4px; align-items: center; height: 32px; }
+  .wave-bar {
+    width: 4px; border-radius: 2px;
+    background: linear-gradient(to top, #b8860b, #ffd700);
+    height: 4px; transition: height 0.1s ease;
+  }
+  @keyframes waveAnim { from{height:4px} to{height:20px} }
+
+  /* ── BUBBLE ── */
+  #bubble {
+    max-width: 380px; text-align: center;
+    font-size: 14px; line-height: 1.6; color: #d4b066;
+    padding: 10px 20px;
+    background: rgba(184,134,11,0.06);
+    border-radius: 12px;
+    border: 1px solid rgba(184,134,11,0.2);
+    min-height: 50px; font-style: italic;
+    width: calc(100% - 32px);
+  }
+
+  /* ── CAMERA ── */
+  #camera-wrap {
+    width: 100%; max-width: 600px;
+    padding: 0 16px; margin-bottom: 10px;
+    display: none;
+  }
+  #camera-wrap.active { display: block; }
+  #camera-inner { border-radius: 12px; overflow: hidden; border: 2px solid rgba(184,134,11,0.4); }
+  #video { width: 100%; display: block; max-height: 180px; object-fit: cover; }
+  #cam-buttons { display: flex; gap: 8px; padding: 8px; background: rgba(0,0,0,0.7); }
+  #btn-snap {
+    flex: 1; padding: 10px;
+    background: linear-gradient(135deg,#b8860b,#ffd700);
+    border: none; border-radius: 8px;
+    color: #000; font-weight: bold; font-size: 14px; cursor: pointer;
+  }
+  #btn-cam-close {
+    padding: 10px 16px;
+    background: rgba(255,60,60,0.2);
+    border: 1px solid rgba(255,60,60,0.4);
+    border-radius: 8px; color: #ff6060; cursor: pointer; font-size: 14px;
+  }
+
+  /* ── PREVIEW ── */
+  #preview-wrap {
+    width: 100%; max-width: 600px;
+    padding: 0 16px; margin-bottom: 8px;
+    display: none;
+  }
+  #preview-wrap.active { display: flex; align-items: center; gap: 10px; }
+  #preview-inner {
+    flex: 1; display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: rgba(184,134,11,0.1);
+    border: 1px solid rgba(184,134,11,0.3);
+    border-radius: 10px;
+  }
+  #preview-img { width: 60px; height: 45px; object-fit: cover; border-radius: 6px; }
+  #btn-preview-clear { background: none; border: none; color: #ff6060; cursor: pointer; font-size: 16px; }
+
+  /* ── ERROR ── */
+  #cam-error { color: #ff6060; font-size: 13px; padding: 4px 16px; margin-bottom: 6px; }
+
+  /* ── CHAT ── */
+  #chat {
+    flex: 1; width: 100%; max-width: 600px;
+    overflow-y: auto; padding: 0 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    max-height: 26vh;
+  }
+  .msg { display: flex; }
+  .msg.user { justify-content: flex-end; }
+  .msg.bot  { justify-content: flex-start; }
+  .msg-bubble {
+    max-width: 80%; padding: 10px 14px;
+    font-size: 14px; line-height: 1.5;
+    border-radius: 16px;
+  }
+  .msg.user .msg-bubble {
+    border-radius: 16px 16px 4px 16px;
+    background: rgba(0,150,200,0.2);
+    border: 1px solid rgba(0,150,200,0.3);
+    color: #a8d8ea;
+  }
+  .msg.bot .msg-bubble {
+    border-radius: 16px 16px 16px 4px;
+    background: rgba(184,134,11,0.12);
+    border: 1px solid rgba(184,134,11,0.25);
+    color: #d4b066;
+  }
+  .msg-bubble img { width:100%; border-radius:8px; margin-bottom:6px; max-height:120px; object-fit:cover; display:block; }
+  #thinking-dots { display: none; gap: 6px; padding: 8px 14px; }
+  #thinking-dots.active { display: flex; }
+  @keyframes bounce { from{transform:translateY(0)} to{transform:translateY(-8px)} }
+  .dot-bounce {
+    width: 8px; height: 8px; border-radius: 50%; background: #ff8c00;
+  }
+
+  /* ── VOICE STATUS ── */
+  #voice-status {
+    width: 100%; max-width: 600px;
+    padding: 7px 20px;
+    background: rgba(0,150,255,0.08);
+    border-top: 1px solid rgba(0,150,255,0.2);
+    font-size: 13px; color: #7ecfff;
+    text-align: center; letter-spacing: 1px;
+    display: none;
+    flex-shrink: 0;
+  }
+  #voice-status.active { display: block; }
+
+  /* ── INPUT BAR ── */
+  #input-bar {
+    width: 100%; max-width: 600px;
+    padding: 10px 16px;
+    border-top: 1px solid rgba(184,134,11,0.2);
+    display: flex; gap: 8px; align-items: flex-end;
+    background: rgba(1,13,26,0.95);
+    backdrop-filter: blur(10px);
+    flex-shrink: 0;
+  }
+  .icon-btn {
+    width: 48px; height: 48px; border-radius: 50%;
+    border: 2px solid; cursor: pointer;
+    font-size: 20px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  #btn-mic {
+    background: rgba(100,100,100,0.15);
+    border-color: rgba(100,100,100,0.3);
+    color: #888;
+  }
+  #btn-mic.listening {
+    background: rgba(0,200,100,0.2);
+    border-color: rgba(0,200,100,0.6);
+    color: #00c864;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  #btn-cam {
+    background: rgba(184,134,11,0.15);
+    border-color: rgba(184,134,11,0.4);
+    color: #b8860b;
+  }
+  #btn-cam.active {
+    background: rgba(255,60,60,0.2);
+    border-color: rgba(255,60,60,0.5);
+    color: #ff6060;
+  }
+  #input-text {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(184,134,11,0.3);
+    border-radius: 12px; padding: 12px 14px;
+    color: #c8a84b; font-size: 15px; font-family: Georgia,serif;
+    resize: none; outline: none; line-height: 1.4;
+    height: 48px;
+  }
+  #input-text::placeholder { color: rgba(184,134,11,0.4); }
+  #btn-send {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: linear-gradient(135deg,#b8860b,#ffd700);
+    border: none; color: #000; font-size: 20px;
+    cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.2s;
+  }
+  #btn-send:disabled { opacity: 0.3; cursor: not-allowed; background: rgba(184,134,11,0.2); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: rgba(184,134,11,0.3); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <div class="label">⚓ Tekne Yapay Zekası</div>
+  <div id="status-dot" class="ready">
+    <div class="dot"></div>
+    <span id="status-text">HAZIR</span>
+  </div>
+</div>
+
+<!-- FACE -->
+<div id="face">
+  <div id="zenon-title">ZENON</div>
+  <div id="emotion-label" style="opacity:0"></div>
+  <div id="eyes">
+    <div class="eye" id="eye-left">
+      <div class="iris" id="iris-left">
+        <div class="pupil" id="pupil-left"><div class="shine"></div></div>
+      </div>
+      <div class="lid-top" id="lid-left" style="height:50%"></div>
+      <div class="lid-bot" id="lidbot-left" style="height:18%"></div>
+      <div class="brow" id="brow-left" style="opacity:0;width:55%;right:10px;transform:rotate(18deg)"></div>
+      <div class="teardrop" id="tear-left" style="display:none"></div>
+      <div class="glass-shine"></div>
+      <!-- vidalar -->
+      <div class="screw" style="transform:rotate(0deg)   translateY(-53px) translate(-50%,-50%)"></div>
+      <div class="screw" style="transform:rotate(90deg)  translateY(-53px) translate(-50%,-50%)"></div>
+      <div class="screw" style="transform:rotate(180deg) translateY(-53px) translate(-50%,-50%)"></div>
+      <div class="screw" style="transform:rotate(270deg) translateY(-53px) translate(-50%,-50%)"></div>
+    </div>
+    <div class="eye" id="eye-right">
+      <div class="iris" id="iris-right">
+        <div class="pupil" id="pupil-right"><div class="shine"></div></div>
+      </div>
+      <div class="lid-top" id="lid-right" style="height:50%"></div>
+      <div class="lid-bot" id="lidbot-right" style="height:18%"></div>
+      <div class="brow" id="brow-right" style="opacity:0;width:55%;left:10px;transform:rotate(-18deg)"></div>
+      <div class="teardrop" id="tear-right" style="display:none"></div>
+      <!-- şaka kıvılcımları -->
+      <div class="spark" id="spark1" style="display:none;top:calc(20% - 12px);left:calc(50% - 12px)"></div>
+      <div class="spark" id="spark2" style="display:none;top:calc(20% - 10px);left:calc(50% + 12px)"></div>
+      <div class="spark" id="spark3" style="display:none;top:calc(20% - 18px);left:calc(50% + 0px)"></div>
+      <div class="glass-shine"></div>
+      <div class="screw" style="transform:rotate(0deg)   translateY(-53px) translate(-50%,-50%)"></div>
+      <div class="screw" style="transform:rotate(90deg)  translateY(-53px) translate(-50%,-50%)"></div>
+      <div class="screw" style="transform:rotate(180deg) translateY(-53px) translate(-50%,-50%)"></div>
+      <div class="screw" style="transform:rotate(270deg) translateY(-53px) translate(-50%,-50%)"></div>
+    </div>
+  </div>
+
+  <!-- DALGA -->
+  <div id="wave"></div>
+
+  <!-- BUBBLE -->
+  <div id="bubble">"Merhaba kaptan! Ben Zenon, senin tekne arkadaşın. Dinliyorum..."</div>
+</div>
+
+<!-- CAMERA -->
+<div id="camera-wrap">
+  <div id="camera-inner">
+    <video id="video" autoplay playsinline muted></video>
+    <div id="cam-buttons">
+      <button id="btn-snap">📸 Çek &amp; Analiz Et</button>
+      <button id="btn-cam-close">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- PREVIEW -->
+<div id="preview-wrap">
+  <div id="preview-inner">
+    <img id="preview-img" src="" alt="preview">
+    <span style="font-size:13px;flex:1;color:#d4b066">Fotoğraf hazır, mesaj yaz veya direkt gönder</span>
+    <button id="btn-preview-clear">✕</button>
+  </div>
+</div>
+
+<div id="cam-error"></div>
+
+<!-- CHAT -->
+<div id="chat">
+  <div id="thinking-dots">
+    <div class="dot-bounce" style="animation:bounce 0.6s ease-in-out 0s infinite alternate"></div>
+    <div class="dot-bounce" style="animation:bounce 0.6s ease-in-out 0.15s infinite alternate"></div>
+    <div class="dot-bounce" style="animation:bounce 0.6s ease-in-out 0.3s infinite alternate"></div>
+  </div>
+</div>
+
+<!-- VOICE STATUS -->
+<div id="voice-status"></div>
+
+<!-- INPUT BAR -->
+<div id="input-bar">
+  <button class="icon-btn" id="btn-mic" title="Sesli komut">🎤</button>
+  <button class="icon-btn" id="btn-cam" title="Kamera">📷</button>
+  <textarea id="input-text" placeholder="Zenon'a bir şey yaz..." rows="1"></textarea>
+  <button id="btn-send">⚓</button>
+</div>
+
+<canvas id="canvas" style="display:none"></canvas>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════
+const EMOTIONS = {
+  neutral:  { iris:"#00aaff", glow:"rgba(0,170,255,0.7)",   pupilScale:1,    label:"",   lidL:0,    lidR:0,    skewL:0,   skewR:0   },
+  happy:    { iris:"#00cc66", glow:"rgba(0,204,102,0.8)",   pupilScale:0.85, label:"😊", lidL:0.30, lidR:0.30, skewL:0,   skewR:0   },
+  sad:      { iris:"#4466aa", glow:"rgba(68,102,170,0.6)",  pupilScale:1.1,  label:"😢", lidL:0.20, lidR:0.20, skewL:6,   skewR:-6  },
+  angry:    { iris:"#dd2200", glow:"rgba(220,34,0,0.9)",    pupilScale:1.2,  label:"😠", lidL:0.35, lidR:0.35, skewL:-8,  skewR:8   },
+  joking:   { iris:"#ffaa00", glow:"rgba(255,170,0,0.8)",   pupilScale:0.8,  label:"😄", lidL:0.25, lidR:0.25, skewL:0,   skewR:0   },
+  surprised:{ iris:"#cc44ff", glow:"rgba(204,68,255,0.8)",  pupilScale:1.35, label:"😮", lidL:0,    lidR:0,    skewL:0,   skewR:0   },
+  thinking: { iris:"#ff8c00", glow:"rgba(255,140,0,0.8)",   pupilScale:0.9,  label:"🤔", lidL:0.10, lidR:0.40, skewL:0,   skewR:-10 },
+};
+
+let currentEmotion = "neutral";
+let isBlinking = false;
+let lookX = 0, lookY = 0;
+let capturedImage = null;
+let isThinking = false;
+let messages = [];
+let recognition = null;
+let isListening = false;
+let cameraStream = null;
+
+// ════════════════════════════════════════════════════════
+//  DOM REFS
+// ════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const eyeL=$("eye-left"), eyeR=$("eye-right");
+const irisL=$("iris-left"), irisR=$("iris-right");
+const pupilL=$("pupil-left"), pupilR=$("pupil-right");
+const lidL=$("lid-left"), lidR=$("lid-right");
+const lidbotL=$("lidbot-left"), lidbotR=$("lidbot-right");
+const browL=$("brow-left"), browR=$("brow-right");
+const tearL=$("tear-left"), tearR=$("tear-right");
+const sparks=[$("spark1"),$("spark2"),$("spark3")];
+
+// ════════════════════════════════════════════════════════
+//  WAVE BARS
+// ════════════════════════════════════════════════════════
+const wave = $("wave");
+for(let i=0;i<12;i++){
+  const b=document.createElement("div");
+  b.className="wave-bar";
+  b.id="wb"+i;
+  wave.appendChild(b);
+}
+function setWave(active){
+  for(let i=0;i<12;i++){
+    const b=$("wb"+i);
+    if(active){
+      b.style.animation=`waveAnim ${0.3+i*0.07}s ease-in-out infinite alternate`;
+      b.style.boxShadow="0 0 6px rgba(255,215,0,0.6)";
+    } else {
+      b.style.animation="none";
+      b.style.height="4px";
+      b.style.boxShadow="none";
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  EYE RENDER
+// ════════════════════════════════════════════════════════
+function renderEyes(blinking=false, winking=false){
+  const em = EMOTIONS[currentEmotion] || EMOTIONS.neutral;
+  const ps = `${28*em.pupilScale}px`;
+  const irisGrad = (c) => `radial-gradient(circle at 40% 35%, ${c}cc, ${c}55)`;
+
+  // iris rengi & glow
+  [irisL, irisR].forEach(el=>{
+    el.style.background = irisGrad(em.iris);
+    el.style.boxShadow  = `0 0 18px ${em.glow}`;
+  });
+  [eyeL, eyeR].forEach(el=>{
+    el.style.boxShadow  = `0 0 30px rgba(184,134,11,0.5), inset 0 0 20px rgba(0,0,0,0.8), 0 0 50px ${em.glow}`;
+  });
+
+  // pupil büyüklüğü
+  [pupilL, pupilR].forEach(el=>{
+    el.style.width  = ps;
+    el.style.height = ps;
+  });
+
+  // göz takibi
+  const px = lookX*12, py = lookY*8;
+  [irisL, irisR].forEach(el=>{
+    const [bx,by] = [px,py];
+    el.style.transform = `translate(calc(-50% + ${bx}px), calc(-50% + ${by}px))`;
+  });
+
+  // kapaklar
+  const lidLH = blinking ? 1 : em.lidL;
+  const lidRH = (blinking||winking) ? 1 : em.lidR;
+  lidL.style.height  = `${50 + lidLH*70}%`;
+  lidR.style.height  = `${50 + lidRH*70}%`;
+  lidL.style.transform = `skewX(${em.skewL}deg)`;
+  lidR.style.transform = `skewX(${em.skewR}deg)`;
+
+  // alt kapak
+  const botH = currentEmotion==="sad" ? "28%" : currentEmotion==="happy" ? "22%" : "18%";
+  lidbotL.style.height = botH;
+  lidbotR.style.height = botH;
+
+  // kaşlar (kızgın)
+  const showBrow = currentEmotion==="angry";
+  browL.style.opacity = showBrow ? "1" : "0";
+  browR.style.opacity = showBrow ? "1" : "0";
+
+  // gözyaşı (üzgün)
+  tearL.style.display = currentEmotion==="sad" ? "block" : "none";
+  tearR.style.display = currentEmotion==="sad" ? "block" : "none";
+
+  // kıvılcımlar (şakacı)
+  const showSparks = currentEmotion==="joking";
+  sparks.forEach((s,i)=>{
+    s.style.display = showSparks ? "block" : "none";
+    if(showSparks) s.style.animation = `sparkle ${0.5+i*0.15}s ease-in-out infinite alternate`;
+  });
+
+  // duygu etiketi
+  const el = $("emotion-label");
+  el.textContent = em.label || "";
+  el.style.opacity = em.label ? "1" : "0";
+}
+
+// ════════════════════════════════════════════════════════
+//  GÖZ KIRPMA — gerçek insan ritmi
+// ════════════════════════════════════════════════════════
+function scheduleBlink(){
+  const delay = Math.random()*4000+3000; // 3-7 sn
+  setTimeout(()=>{
+    const dur = Math.random()*60+120; // 120-180ms
+    const doDouble = Math.random()<0.08;
+    isBlinking=true; renderEyes(true);
+    setTimeout(()=>{
+      isBlinking=false; renderEyes(false);
+      if(doDouble){
+        setTimeout(()=>{ isBlinking=true; renderEyes(true);
+          setTimeout(()=>{ isBlinking=false; renderEyes(false); },dur); },180);
+      }
+    }, dur);
+    scheduleBlink();
+  }, delay);
+}
+scheduleBlink();
+
+// ════════════════════════════════════════════════════════
+//  GÖZ TAKİBİ
+// ════════════════════════════════════════════════════════
+document.addEventListener("mousemove", e=>{
+  lookX = (e.clientX/window.innerWidth  - 0.5)*2;
+  lookY = (e.clientY/window.innerHeight - 0.5)*2;
+  renderEyes(isBlinking);
+});
+document.addEventListener("touchmove", e=>{
+  lookX = (e.touches[0].clientX/window.innerWidth  - 0.5)*2;
+  lookY = (e.touches[0].clientY/window.innerHeight - 0.5)*2;
+  renderEyes(isBlinking);
+},{passive:true});
+
+// ════════════════════════════════════════════════════════
+//  DUYGU TESPİT
+// ════════════════════════════════════════════════════════
+function detectEmotion(text){
+  if(!text) return "neutral";
+  const t = text.toLowerCase();
+  if(/kızgın|sinirli|yeter|saçma|olmaz|kabul etmiyorum|asla/.test(t)) return "angry";
+  if(/üzgün|maalesef|ne yazık|kaybettik|tehlike|fırtına|kötü haber/.test(t)) return "sad";
+  if(/haha|hihi|espri|şaka|güldür|komik|gülüyorum/.test(t)) return "joking";
+  if(/harika|mükemmel|süper|bravo|tebrik|muhteşem|güzel haber|sevindim/.test(t)) return "happy";
+  if(/inanılmaz|gerçekten mi|şaşırdım|beklemiyordum/.test(t)) return "surprised";
+  return "neutral";
+}
+
+function setEmotion(e, durationMs=0){
+  currentEmotion = e;
+  renderEyes(isBlinking);
+  if(durationMs>0) setTimeout(()=>{ currentEmotion="neutral"; renderEyes(isBlinking); }, durationMs);
+}
+
+// ════════════════════════════════════════════════════════
+//  STATUS
+// ════════════════════════════════════════════════════════
+function setStatus(mode, text){
+  const el = $("status-dot");
+  el.className = mode;
+  if(mode!=="ready") el.classList.add("pulsing");
+  $("status-text").textContent = text;
+  setWave(mode==="talk");
+}
+function setVoiceStatus(msg){
+  const el=$("voice-status");
+  if(msg){ el.textContent=msg; el.classList.add("active"); }
+  else   { el.classList.remove("active"); }
+}
+
+// ════════════════════════════════════════════════════════
+//  CHAT
+// ════════════════════════════════════════════════════════
+function addMessage(role, text, imgSrc=null){
+  const chat = $("chat");
+  const dots = $("thinking-dots");
+  const div = document.createElement("div");
+  div.className = `msg ${role==="user"?"user":"bot"}`;
+  const bub = document.createElement("div");
+  bub.className = "msg-bubble";
+  if(imgSrc){ const img=document.createElement("img"); img.src=imgSrc; bub.appendChild(img); }
+  bub.appendChild(document.createTextNode(text));
+  div.appendChild(bub);
+  chat.insertBefore(div, dots);
+  chat.scrollTop = chat.scrollHeight;
+}
+function setThinking(on){
+  $("thinking-dots").classList.toggle("active", on);
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+
+// ════════════════════════════════════════════════════════
+//  SESLI CEVAP — Promise döner
+// ════════════════════════════════════════════════════════
+function speakText(text){
+  return new Promise(resolve=>{
+    if(!window.speechSynthesis){ resolve(); return; }
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = "tr-TR"; utt.rate = 0.95;
+    utt.onend = resolve; utt.onerror = resolve;
+    window.speechSynthesis.speak(utt);
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  CLAUDE API
+// ════════════════════════════════════════════════════════
+async function callClaude(userMessage, imageBase64=null){
+  isThinking=true;
+  setStatus("think","DÜŞÜNÜYOR");
+  setEmotion("thinking");
+  setThinking(true);
+  $("btn-send").disabled=true;
+
+  const systemPrompt = `Sen "Zenon" adında bir teknenin ruhusun. Bir tablet aracılığıyla konuşuyorsun ve bu tablet teknenin içine sabitlenmiş.
+Kişiliğin: Deneyimli, bilge, biraz dramatik ve esprili. Denizle derin bir bağın var. Kaptanına her zaman "Kaptan" diye hitap edersin.
+Konuşma tarzın: Kısa ve etkili cümleler. Deniz metaforları kullan. Türkçe konuş.
+Görsel yorumlarken: Tekne içindeki durumu, hava, deniz koşullarını denizci bakış açısıyla yorumla.
+Maksimum 3-4 cümle ile cevap ver.`;
+
+  const contentArray = imageBase64
+    ? [ {type:"image", source:{type:"base64", media_type:"image/jpeg", data:imageBase64.replace(/^data:image\/jpeg;base64,/,"")}},
+        {type:"text", text:userMessage||"Bu görüntüde ne görüyorsun?"} ]
+    : [ {type:"text", text:userMessage} ];
+
+  const apiMessages = [
+    ...messages.map(m=>({role:m.role, content:m.content})),
+    {role:"user", content:contentArray}
+  ];
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-20250514",
+        max_tokens:300,
+        system:systemPrompt,
+        messages:apiMessages
+      })
+    });
+    const data = await res.json();
+    const reply = data.content?.[0]?.text || "Telsizde parazit var kaptan!";
+
+    setThinking(false);
+    isThinking=false;
+    $("btn-send").disabled=false;
+
+    const em = detectEmotion(reply);
+    setEmotion(em);
+    if(em==="joking"){
+      setTimeout(()=>{ renderEyes(false,true); setTimeout(()=>renderEyes(false,false),300); },400);
+    }
+
+    $("bubble").textContent = `"${reply}"`;
+    setStatus("talk","KONUŞUYOR");
+
+    await speakText(reply);
+
+    setTimeout(()=>{ setEmotion("neutral"); setStatus(isListening?"listen":"ready", isListening?"DİNLİYOR":"HAZIR"); }, 1500);
+    return reply;
+  } catch(err){
+    setThinking(false); isThinking=false; $("btn-send").disabled=false;
+    setStatus("ready","HAZIR");
+    return "Sinyal kayboldu kaptan!";
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  KAMERA TETİKLEYİCİLER
+// ════════════════════════════════════════════════════════
+const CAMERA_TRIGGERS = [
+  "bu ne","bu elimdeki","elimde ne","bunu tanı","bunu gör",
+  "ne bu","görüyor musun","gör bunu","analiz et",
+  "ne görüyorsun","ne var burada","fotoğraf çek","resim çek",
+  "kamerayı aç","etrafı gör","çevreyi gör","burası neresi","bak"
+];
+function needsCamera(text){
+  const t=text.toLowerCase();
+  return CAMERA_TRIGGERS.some(tr=>t.includes(tr));
+}
+
+// ════════════════════════════════════════════════════════
+//  OTO KAMERA + GÖNDER
+// ════════════════════════════════════════════════════════
+async function autoCaptureAndSend(text){
+  setVoiceStatus("📷 Kamera açılıyor...");
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
+    cameraStream = stream;
+    const video=$("video");
+    video.srcObject=stream; await video.play();
+    $("camera-wrap").classList.add("active");
+    setVoiceStatus("📸 Görüntü alınıyor...");
+    await new Promise(r=>setTimeout(r,1200));
+    const canvas=$("canvas");
+    canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+    canvas.getContext("2d").drawImage(video,0,0);
+    const dataUrl=canvas.toDataURL("image/jpeg",0.8);
+    stream.getTracks().forEach(t=>t.stop()); cameraStream=null;
+    $("camera-wrap").classList.remove("active");
+    setVoiceStatus("🤖 Analiz ediliyor...");
+    addMessage("user", text, dataUrl);
+    messages.push({role:"user", content:text});
+    const reply = await callClaude(text, dataUrl);
+    messages.push({role:"assistant", content:reply});
+    addMessage("assistant", reply);
+    await speakText(reply);
+    setVoiceStatus("🎤 Dinliyorum...");
+  } catch(e){
+    $("cam-error").textContent="⚠️ Kamera açılamadı: "+e.message;
+    setVoiceStatus("");
+    setTimeout(()=>$("cam-error").textContent="",4000);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  SESLİ KOMUT
+// ════════════════════════════════════════════════════════
+function startListening(){
+  const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ setVoiceStatus("⚠️ Chrome gerekli"); return; }
+  const rec = new SR();
+  rec.lang="tr-TR";
+  rec.continuous=false;
+  rec.interimResults=true;
+  recognition=rec;
+
+  rec.onstart=()=>{ isListening=true; $("btn-mic").classList.add("listening"); setStatus("listen","DİNLİYOR"); setVoiceStatus("🎤 Dinliyorum..."); };
+
+  rec.onresult=async(e)=>{
+    let interim="", final="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) final+=e.results[i][0].transcript;
+      else interim+=e.results[i][0].transcript;
+    }
+    if(interim) setVoiceStatus(`🎤 "${interim}"`);
+    if(final){
+      const text=final.trim();
+      setVoiceStatus(`✅ "${text}"`);
+      rec.stop(); isListening=false;
+      if(needsCamera(text)){
+        await autoCaptureAndSend(text);
+      } else {
+        addMessage("user",text);
+        messages.push({role:"user",content:text});
+        const reply=await callClaude(text);
+        messages.push({role:"assistant",content:reply});
+        addMessage("assistant",reply);
+      }
+      setTimeout(()=>startListening(), 800);
+    }
+  };
+
+  rec.onerror=(e)=>{
+    isListening=false; $("btn-mic").classList.remove("listening");
+    if(e.error==="no-speech"){ setTimeout(()=>startListening(),300); }
+    else { setVoiceStatus(`⚠️ ${e.error}`); setTimeout(()=>startListening(),2000); }
+  };
+  rec.onend=()=>{ isListening=false; $("btn-mic").classList.remove("listening"); };
+
+  try{ rec.start(); } catch(e){}
+}
+
+function stopListening(){
+  recognition?.stop();
+  isListening=false;
+  $("btn-mic").classList.remove("listening");
+  setVoiceStatus("");
+  setStatus("ready","HAZIR");
+}
+
+// ── Otomatik başlat
+setTimeout(()=>startListening(), 1200);
+
+// ════════════════════════════════════════════════════════
+//  MESAJ GÖNDER (yazılı)
+// ════════════════════════════════════════════════════════
+async function sendMessage(){
+  const text = $("input-text").value.trim();
+  if(!text && !capturedImage) return;
+  const userText = text || "Bu görüntüyü analiz et";
+  $("input-text").value="";
+  const img = capturedImage;
+  capturedImage=null;
+  $("preview-wrap").classList.remove("active");
+  addMessage("user", userText, img);
+  messages.push({role:"user",content:userText});
+  const reply=await callClaude(userText, img);
+  messages.push({role:"assistant",content:reply});
+  addMessage("assistant",reply);
+}
+
+// ════════════════════════════════════════════════════════
+//  KAMERA (manuel buton)
+// ════════════════════════════════════════════════════════
+async function openCamera(){
+  try{
+    $("cam-error").textContent="";
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
+    cameraStream=stream;
+    const video=$("video");
+    video.srcObject=stream; await video.play();
+    $("camera-wrap").classList.add("active");
+    $("btn-cam").classList.add("active");
+  } catch(e){
+    $("cam-error").textContent="⚠️ Kamera erişimi reddedildi: "+e.message;
+  }
+}
+function closeCamera(){
+  cameraStream?.getTracks().forEach(t=>t.stop());
+  cameraStream=null;
+  $("camera-wrap").classList.remove("active");
+  $("btn-cam").classList.remove("active");
+}
+function snapPhoto(){
+  const video=$("video");
+  const canvas=$("canvas");
+  canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+  canvas.getContext("2d").drawImage(video,0,0);
+  capturedImage=canvas.toDataURL("image/jpeg",0.8);
+  $("preview-img").src=capturedImage;
+  $("preview-wrap").classList.add("active");
+  closeCamera();
+}
+
+// ════════════════════════════════════════════════════════
+//  EVENT LISTENERS
+// ════════════════════════════════════════════════════════
+$("btn-mic").onclick=()=>{ isListening ? stopListening() : startListening(); };
+$("btn-cam").onclick=()=>{ cameraStream ? closeCamera() : openCamera(); };
+$("btn-snap").onclick=snapPhoto;
+$("btn-cam-close").onclick=closeCamera;
+$("btn-preview-clear").onclick=()=>{ capturedImage=null; $("preview-wrap").classList.remove("active"); };
+$("btn-send").onclick=sendMessage;
+$("input-text").addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMessage(); } });
+
+// ── İlk render
+renderEyes();
+</script>
+</body>
+</html>
