@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ZENON">
+<meta name="theme-color" content="#b8860b">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>ZENON — Tekne Yapay Zekası</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -678,29 +685,32 @@ Konuşma tarzın: Kısa ve etkili cümleler. Deniz metaforları kullan. Türkçe
 Görsel yorumlarken: Tekne içindeki durumu, hava, deniz koşullarını denizci bakış açısıyla yorumla.
 Maksimum 3-4 cümle ile cevap ver.`;
 
-  const contentArray = imageBase64
-    ? [ {type:"image", source:{type:"base64", media_type:"image/jpeg", data:imageBase64.replace(/^data:image\/jpeg;base64,/,"")}},
-        {type:"text", text:userMessage||"Bu görüntüde ne görüyorsun?"} ]
-    : [ {type:"text", text:userMessage} ];
+  const userContent = imageBase64
+    ? [ {type:"image_url", image_url:{url: imageBase64}},
+        {type:"text", text: userMessage||"Bu goruntude ne goruyorsun?"} ]
+    : userMessage;
 
   const apiMessages = [
+    {role:"system", content: systemPrompt},
     ...messages.map(m=>({role:m.role, content:m.content})),
-    {role:"user", content:contentArray}
+    {role:"user", content: userContent}
   ];
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages",{
+    const res = await fetch("https://api.openai.com/v1/chat/completions",{
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization": "Bearer " + OPENAI_KEY
+      },
       body:JSON.stringify({
-        model:"claude-sonnet-4-20250514",
+        model:"gpt-4o",
         max_tokens:300,
-        system:systemPrompt,
         messages:apiMessages
       })
     });
     const data = await res.json();
-    const reply = data.content?.[0]?.text || "Telsizde parazit var kaptan!";
+    const reply = data.choices?.[0]?.message?.content || "Telsizde parazit var kaptan!";
 
     setThinking(false);
     isThinking=false;
@@ -897,6 +907,15 @@ $("input-text").addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey)
 
 // ── İlk render
 renderEyes();
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js')
+      .then(()=>console.log('Zenon SW aktif'))
+      .catch(e=>console.log('SW hatasi:', e));
+  });
+}
 </script>
 </body>
 </html>
